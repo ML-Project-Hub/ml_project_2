@@ -1,8 +1,9 @@
 
 # coding: utf-8
 
-# In[94]:
+# In[73]:
 
+#Python 2.7.13
 import numpy as np
 import random
 from sklearn.cluster import KMeans
@@ -12,7 +13,7 @@ letor_input_data = np.genfromtxt('Info/Querylevelnorm_X.csv', delimiter=',')
 letor_output_data = np.genfromtxt('Info/Querylevelnorm_t.csv', delimiter=',').reshape([-1, 1])
 
 
-# In[95]:
+# In[74]:
 
 def shuffle(input_data):
     indices = [i for i in range(len(input_data))]
@@ -28,7 +29,7 @@ def split_data(input_data,indices):
     return np.array(training_data),np.array(validation_data),np.array(test_data),np.array(total_data)
 
 
-# In[96]:
+# In[75]:
 
 #For setting hyperparameters muj and sigmaj with respect to M - number of basis functions
 def k_means(k,input_data):
@@ -51,7 +52,7 @@ def k_means(k,input_data):
     return dic
 
 
-# In[97]:
+# In[76]:
 
 ##Given in ppt
 def compute_design_matrix(X, centers, spreads):
@@ -61,7 +62,7 @@ def compute_design_matrix(X, centers, spreads):
     return np.insert(basis_func_outputs, 0, 1, axis=1)
 
 
-# In[98]:
+# In[77]:
 
 def design_mat_gen(total_data, m_value):
     dic = k_means(m_value-1,total_data)
@@ -73,7 +74,7 @@ def design_mat_gen(total_data, m_value):
     return design_matrix
 
 
-# In[99]:
+# In[78]:
 
 ##Given in ppt
 def closed_form_sol(L2_lambda, design_matrix, output_data):
@@ -84,7 +85,7 @@ def closed_form_sol(L2_lambda, design_matrix, output_data):
     ).flatten().tolist())
 
 
-# In[100]:
+# In[79]:
 
 ##Given in ppt
 def SGD_sol(learning_rate,minibatch_size,num_epochs,L2_lambda,design_matrix,output_data):
@@ -93,6 +94,7 @@ def SGD_sol(learning_rate,minibatch_size,num_epochs,L2_lambda,design_matrix,outp
     # Using minibatch_size = N is equivalent to standard gradient descent
     # Using minibatch_size = 1 is equivalent to stochastic gradient descent
     # In this case, minibatch_size = N is better
+    early_stop_error = 1
     weights = np.zeros([1, len(design_matrix[0])])
     # The more epochs the higher training accuracy. When set to 1000000,
     # weights will be very close to closed_form_weights. But this is unnecessary
@@ -105,11 +107,23 @@ def SGD_sol(learning_rate,minibatch_size,num_epochs,L2_lambda,design_matrix,outp
             E_D = np.matmul((np.matmul(Phi, weights.T)-t).T,Phi)
             E = (E_D + L2_lambda * weights) / minibatch_size
             weights = weights - learning_rate * E
-            #print np.linalg.norm(E)
+            if(epoch == 0):
+                prev = np.linalg.norm(E)
+                now = np.linalg.norm(E)
+            else:
+                prev = now
+                now = np.linalg.norm(E)
+                early_stop_error = prev - now
+                
+        #Early Stopping
+        if (early_stop_error < 0.0001):
+            break
+                
+            
     return weights.flatten()
 
 
-# In[101]:
+# In[80]:
 
 def error(output_data,w,dm,lambda_val):
     error = 1/2.0*sum([(output_data[i]-sum(w.T*dm[i]))**2 for i in range(len(output_data))]).tolist()[0] + lambda_val*sum(1/2.0*w.T*w)
@@ -125,13 +139,19 @@ def rms_error(error,test_data_len):
 
 
 
-# In[129]:
+# In[81]:
 
 #Synthetic or LeToR data
 ##################################
 ###Change syn to letor here####
-input_data = letor_input_data
-output_data = letor_output_data
+is_syn = True
+
+if(is_syn):
+    input_data = syn_input_data
+    output_data = syn_output_data
+else:
+    input_data = letor_input_data
+    output_data = letor_output_data
 ##################################
 
 
@@ -145,7 +165,7 @@ out1,out2,out3,tot_out = split_data(output_data,indices)
 
 
 
-# In[130]:
+# In[ ]:
 
 if(len(tot_in.T) == 10):
     print "CLOSED FORM FOR SYNTHETIC DATA"
@@ -153,21 +173,20 @@ elif (len(tot_in.T) == 46):
     print "CLOSED FORM FOR LETOR DATA"
 
 
-# In[104]:
+# In[ ]:
 
 #Lambda Hyperparameter
 lambda_value = 0.1
 m = 2 #incremented every turn
 
-#Early stop parameter
-p = 10
+
+p = 6
 j = 0
 
 
 #Initial Minimum error (infinity) found during training validation cycle
 min_err_val = np.inf
 
-#Early stopping
 while (j + 2 < p):
     #compute design matrix for hyper parameter M = m
     design_matrix = design_mat_gen(tot_in,m)
@@ -191,12 +210,11 @@ while (j + 2 < p):
         min_w = w
     else:
         j +=1
-    
-    print "Latest Optimal M:", min_m, " Current M:",m
     m += 1
+print "Optimal M:", min_m
 
 
-# In[105]:
+# In[ ]:
 
 mat2_dm = min_dm[int(len(design_matrix)*0.8):int(len(design_matrix)*0.9)]
 mat3_dm = min_dm[int(len(design_matrix)*0.9):]
@@ -209,19 +227,19 @@ error_test = rms_error(error(out3,min_w,mat3_dm,lambda_value),len(mat3_dm))
 print "RMS in test data is: ", error_test
 
 
-# In[106]:
+# In[ ]:
 
 print "Min w:"
 print min_w
 
 
-# In[107]:
+# In[ ]:
 
 print "Design Matrix corresponding to min W:"
 print min_dm
 
 
-# In[108]:
+# In[ ]:
 
 predicted_y = np.array([i[0] for i in np.matmul(np.matrix(mat3_dm.tolist()),np.matrix(min_w.tolist()).T).tolist()])
 print "Predicted Y:"
@@ -230,7 +248,7 @@ print "Original Y:"
 print out3.T
 
 
-# In[109]:
+# In[ ]:
 
 scaled_y = [round(i,0) for i in predicted_y]
 count = 0
@@ -238,7 +256,8 @@ for i in range(len(scaled_y)):
     if out3[i] == scaled_y[i]:
         count+=1
         
-print "Number of records matching in test data after rounding to the nearest decimal:",count
+print "Number of records matching in test data after rounding to the nearest decimal:",count,
+print "out of", len(out3)
 
 
 # In[ ]:
@@ -246,7 +265,7 @@ print "Number of records matching in test data after rounding to the nearest dec
 
 
 
-# In[131]:
+# In[ ]:
 
 if(len(tot_in.T) == 10):
     print "SGD FOR SYNTHETIC DATA"
@@ -254,22 +273,21 @@ elif (len(tot_in.T) == 46):
     print "SGD FOR LETOR DATA"
 
 
-# In[112]:
+# In[ ]:
 
 #Hyperparameters
 lambda_value = 0.1
 learn_rate = 0.01
 m = 2 #incremented every turn
 
-#Early stop parameter
-p = 10
+
+p = 6
 j = 0
 
 
 #Initial Minimum error (infinity) found during training validation cycle
 min_err_val = np.inf
 
-#Early stopping
 while (j + 2 < p):
     #compute design matrix for hyper parameter M = m
     design_matrix = design_mat_gen(tot_in,m)
@@ -294,12 +312,11 @@ while (j + 2 < p):
         min_w = w_sgd
     else:
         j += 1
-        
-    print "Latest Optimal M:", min_m, " Current M:",m
     m += 1
+print "Optimal M:", min_m
 
 
-# In[113]:
+# In[ ]:
 
 mat2_dm = min_dm[int(len(design_matrix)*0.8):int(len(design_matrix)*0.9)]
 mat3_dm = min_dm[int(len(design_matrix)*0.9):]
@@ -312,13 +329,13 @@ error_test = rms_error(error(out3,min_w,mat3_dm,lambda_value),len(mat3_dm))
 print "RMS in test data is: ", error_test
 
 
-# In[114]:
+# In[ ]:
 
 print "Min w:"
 print min_w
 
 
-# In[121]:
+# In[ ]:
 
 predicted_y = np.array([i[0] for i in np.matmul(np.matrix(mat3_dm.tolist()),np.matrix(min_w.tolist()).T).tolist()])
 print "Predicted Y:"
@@ -328,7 +345,7 @@ print "Original Y:"
 print out3.T
 
 
-# In[122]:
+# In[ ]:
 
 scaled_y = [round(i,0) for i in predicted_y]
 count = 0
@@ -336,7 +353,13 @@ for i in range(len(scaled_y)):
     if out3[i] == scaled_y[i]:
         count+=1
         
-print "Number of records matching in test data after rounding to the nearest decimal:",count
+print "Number of records matching in test data after rounding to the nearest decimal:",count,
+print "out of", len(out3)
+
+
+# In[ ]:
+
+
 
 
 # In[ ]:
